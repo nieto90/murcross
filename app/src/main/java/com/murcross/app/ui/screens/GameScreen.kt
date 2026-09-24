@@ -48,6 +48,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.murcross.app.BuildConfig
+import com.murcross.app.debug.DebugSolutions
 import com.murcross.app.ui.theme.GlyphO
 import com.murcross.app.ui.theme.GlyphP
 import com.murcross.app.ui.theme.GlyphV
@@ -107,27 +109,30 @@ fun GameScreen(level: Level, onBack: () -> Unit) {
         bgm.muted = muted
     }
 
+    var showRoomPills by remember { mutableStateOf(false) }
+
     Column(
         Modifier
             .fillMaxSize()
             .background(MxColors.Bg)
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // Vera HUD: short title + mute/back only — no subtitle
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(40.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             TextButton(onClick = onBack) { Text("←", color = MxColors.Brand) }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    level.title.ifBlank { level.id },
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MxColors.Ink,
-                )
-                Text(
-                    "Peones anónimos · V fija · Resolver al legal",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MxColors.InkMuted,
-                )
-            }
+            Text(
+                level.title.ifBlank { level.id },
+                style = MaterialTheme.typography.titleLarge.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold),
+                color = MxColors.Ink,
+                maxLines = 1,
+                modifier = Modifier.weight(1f),
+            )
             TextButton(onClick = { toggleMute(); refresh() }) {
                 Text(if (muted) "🔇" else "🔊")
             }
@@ -175,6 +180,7 @@ fun GameScreen(level: Level, onBack: () -> Unit) {
                 }
                 refresh()
             },
+            showRoomPills = showRoomPills,
             onLongPress = { cell ->
                 val ok = game.longPressCell(cell.r, cell.c)
                 if (ok) {
@@ -183,6 +189,9 @@ fun GameScreen(level: Level, onBack: () -> Unit) {
                         prefs.edit().putBoolean("ftue_remove_longpress_done", true).apply()
                         showRemoveCoach = false
                     }
+                } else {
+                    // Vera: long-press empty → toggle room pills
+                    showRoomPills = !showRoomPills
                 }
                 refresh()
             },
@@ -233,28 +242,59 @@ fun GameScreen(level: Level, onBack: () -> Unit) {
             },
         )
 
-        Button(
-            onClick = {
-                val outcome = game.resolve()
-                refresh()
-                if (outcome != null) {
-                    sfx.play(Sfx.SfxReveal) // same reveal regardless of culprit
-                    bgm.start(Bgm.BgmVictory)
-                    showReveal = outcome
-                } else {
-                    sfx.play(Sfx.SfxIllegal)
-                }
-            },
-            enabled = canResolve,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MxColors.Brand,
-                contentColor = MxColors.Surface,
-                disabledContainerColor = MxColors.Line,
-                disabledContentColor = MxColors.InkMuted,
-            ),
-            shape = RoundedCornerShape(MxCardRadius),
-        ) { Text("Resolver") }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Button(
+                onClick = {
+                    val outcome = game.resolve()
+                    refresh()
+                    if (outcome != null) {
+                        sfx.play(Sfx.SfxReveal)
+                        bgm.start(Bgm.BgmVictory)
+                        showReveal = outcome
+                        showRoomPills = true
+                    } else {
+                        sfx.play(Sfx.SfxIllegal)
+                    }
+                },
+                enabled = canResolve,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MxColors.Brand,
+                    contentColor = MxColors.Surface,
+                    disabledContainerColor = MxColors.Line,
+                    disabledContentColor = MxColors.InkMuted,
+                ),
+                shape = RoundedCornerShape(MxCardRadius),
+            ) { Text("Resolver") }
+            if (BuildConfig.DEBUG) {
+                OutlinedButton(
+                    onClick = {
+                        val placements = DebugSolutions.placementsFor(level)
+                        if (placements == null) {
+                            sfx.play(Sfx.SfxIllegal)
+                            refresh()
+                            return@OutlinedButton
+                        }
+                        val outcome = game.applyAuthoredSolution(placements)
+                        refresh()
+                        if (outcome != null) {
+                            sfx.play(Sfx.SfxReveal)
+                            bgm.start(Bgm.BgmVictory)
+                            showReveal = outcome
+                            showRoomPills = true
+                        } else {
+                            // authored layout failed validate — never count as victory
+                            sfx.play(Sfx.SfxIllegal)
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(MxCardRadius),
+                ) { Text("Ver solución") }
+            }
+        }
     }
 
     showReveal?.let { outcome ->
@@ -298,6 +338,7 @@ fun GameScreen(level: Level, onBack: () -> Unit) {
 private fun BoardWithEdges(
     game: GameController,
     validAnchors: Set<Cell>,
+    showRoomPills: Boolean = false,
     onCell: (Cell) -> Unit,
     onLongPress: (Cell) -> Unit,
 ) {
@@ -320,7 +361,7 @@ private fun BoardWithEdges(
 
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.Bottom) {
-            Spacer(Modifier.width(56.dp))
+            Spacer(Modifier.width(52.dp))
             for (c in 0 until n) {
                 Column(
                     Modifier.width(cellSize),
@@ -328,30 +369,19 @@ private fun BoardWithEdges(
                 ) {
                     val line = play.edge.cols[c]
                     PoBadge(line.people, line.objects)
-                    Text(
-                        visibleTramos(line.segments.map { it.count }),
-                        fontSize = 11.sp,
-                        textAlign = TextAlign.Center,
-                        color = MxColors.Ink,
-                    )
+                    TramoBoxes(line.segments.map { it.count })
                 }
             }
         }
         for (r in 0 until n) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(
-                    Modifier.width(56.dp),
+                    Modifier.width(52.dp),
                     horizontalAlignment = Alignment.End,
                 ) {
                     val line = play.edge.rows[r]
                     PoBadge(line.people, line.objects)
-                    Text(
-                        visibleTramos(line.segments.map { it.count }),
-                        fontSize = 11.sp,
-                        textAlign = TextAlign.End,
-                        color = MxColors.Ink,
-                        modifier = Modifier.padding(end = 4.dp),
-                    )
+                    TramoBoxes(line.segments.map { it.count }, endPad = true)
                 }
                 for (c in 0 until n) {
                     val roomId = play.roomOf(r, c)
@@ -365,7 +395,7 @@ private fun BoardWithEdges(
                         c = c,
                         validAnchor = Cell(r, c) in validAnchors,
                         hasSelection = game.selectedId != null && !game.modeX,
-                        roomPill = if (showPill) pillText else null,
+                        roomPill = if (showRoomPills && showPill) pillText else null,
                         modifier = Modifier.size(cellSize),
                         onClick = { onCell(Cell(r, c)) },
                         onLongClick = { onLongPress(Cell(r, c)) },
@@ -376,34 +406,56 @@ private fun BoardWithEdges(
     }
 }
 
-/** V3-2: omit tramo 0; empty line → single 0. */
-private fun visibleTramos(counts: List<Int>): String {
-    val visible = counts.filter { it > 0 }
-    return if (visible.isEmpty()) "0" else visible.joinToString("|")
-}
-
+/** V3-2: omit tramo 0; empty → single 0. Vera: no '|' — separate boxes with gap. */
 @Composable
-private fun PoBadge(people: Int, objects: Int) {
-    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        if (people > 0) {
+private fun TramoBoxes(counts: List<Int>, endPad: Boolean = false) {
+    val visible = counts.filter { it > 0 }.ifEmpty { listOf(0) }
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = if (endPad) Modifier.padding(end = 4.dp) else Modifier,
+    ) {
+        for (n in visible) {
             Text(
-                "P$people",
-                fontSize = 9.sp,
-                color = MxColors.Ink,
+                "$n",
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                color = MxColors.InkMuted,
+                fontWeight = FontWeight.Medium,
                 modifier = Modifier
-                    .background(MxColors.EdgeP, RoundedCornerShape(3.dp))
-                    .padding(horizontal = 3.dp),
+                    .background(MxColors.Surface, RoundedCornerShape(3.dp))
+                    .padding(horizontal = 4.dp, vertical = 1.dp),
             )
         }
+    }
+}
+
+/** Vera: glyph P/O + digit — never strings "P1"/"O2". */
+@Composable
+private fun PoBadge(people: Int, objects: Int) {
+    Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (people > 0) {
+            Row(
+                Modifier
+                    .background(MxColors.EdgeP, RoundedCornerShape(3.dp))
+                    .padding(horizontal = 2.dp, vertical = 1.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(1.dp),
+            ) {
+                GlyphP(Modifier.size(10.dp), fill = MxColors.Ink)
+                Text("$people", fontSize = 9.sp, color = MxColors.Ink, fontWeight = FontWeight.Bold)
+            }
+        }
         if (objects > 0) {
-            Text(
-                "O$objects",
-                fontSize = 9.sp,
-                color = MxColors.Ink,
-                modifier = Modifier
+            Row(
+                Modifier
                     .background(MxColors.EdgeO, RoundedCornerShape(3.dp))
-                    .padding(horizontal = 3.dp),
-            )
+                    .padding(horizontal = 2.dp, vertical = 1.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(1.dp),
+            ) {
+                GlyphO(Modifier.size(10.dp), fill = MxColors.Ink, hatch = MxColors.Ink.copy(alpha = 0.25f))
+                Text("$objects", fontSize = 9.sp, color = MxColors.Ink, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
@@ -524,8 +576,8 @@ private fun TrayBar(
             Modifier
                 .fillMaxSize()
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TwoRowSlotColumns(
@@ -565,21 +617,19 @@ private fun TwoRowSlotColumns(
     onReturn: (String) -> Unit,
 ) {
     val columns = ids.chunked(2)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         for (col in columns) {
             Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 for (id in col) {
                     val placed = game.state.placementOf(id) != null
                     val selected = game.selectedId == id
-                    val rot = if (isObject) game.getObjectRot(id) else 0
                     TrayChip(
                         isObject = isObject,
                         selected = selected,
                         placed = placed,
-                        subtitle = if (isObject) "r$rot" else null,
                         onClick = {
                             when {
                                 placed && game.selectedId == id -> onReturn(id)
@@ -603,7 +653,6 @@ private fun TrayChip(
     isObject: Boolean,
     selected: Boolean,
     placed: Boolean,
-    subtitle: String? = null,
     onClick: () -> Unit,
 ) {
     // States: inTray | selected | placed(ghost~30% dashed)
@@ -645,26 +694,17 @@ private fun TrayChip(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            if (isObject) {
-                GlyphO(
-                    Modifier.size(28.dp),
-                    fill = MxColors.ObjectFill.copy(alpha = contentAlpha),
-                    hatch = MxColors.ObjectHatch.copy(alpha = 0.22f * contentAlpha),
-                )
-            } else {
-                GlyphP(
-                    Modifier.size(28.dp),
-                    fill = MxColors.PersonFill.copy(alpha = contentAlpha),
-                )
-            }
-            if (subtitle != null) {
-                Text(
-                    subtitle,
-                    fontSize = 8.sp,
-                    color = MxColors.InkMuted.copy(alpha = contentAlpha),
-                )
-            }
+        if (isObject) {
+            GlyphO(
+                Modifier.size(28.dp),
+                fill = MxColors.ObjectFill.copy(alpha = contentAlpha),
+                hatch = MxColors.ObjectHatch.copy(alpha = 0.22f * contentAlpha),
+            )
+        } else {
+            GlyphP(
+                Modifier.size(28.dp),
+                fill = MxColors.PersonFill.copy(alpha = contentAlpha),
+            )
         }
     }
 }

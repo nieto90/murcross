@@ -328,4 +328,13 @@ class GameController(val level: Level) {
         state = GameState(placements = placements, marksX = emptyList())
         resolved = null
     }
+
+    /**
+     * DEBUG: carga layout autorado y resuelve si es legal.
+     * No marca victoria si el layout no valida (V3-4 intacto).
+     */
+    fun applyAuthoredSolution(placements: List<Placement>): RevealOutcome? {
+        loadPlacements(placements)
+        return resolve()
+    }
 }
