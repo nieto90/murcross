@@ -45,10 +45,15 @@ import com.murcross.domain.model.PieceKind
 import com.murcross.domain.model.RevealOutcome
 import com.murcross.domain.model.absoluteObjectCells
 import com.murcross.domain.model.objectCells
+import com.murcross.audio.MurcrossSfx
+import com.murcross.audio.Sfx
 import com.murcross.engine.GameController
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun GameScreen(level: Level, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val sfx = remember { MurcrossSfx(context) }
     val game = remember(level.id) { GameController(level) }
     var tick by remember { mutableIntStateOf(0) }
     fun refresh() { tick++ }
@@ -79,7 +84,13 @@ fun GameScreen(level: Level, onBack: () -> Unit) {
         }
 
         BoardWithEdges(game = game, onCell = {
+            val beforeX = game.modeX
             game.tapCell(it.r, it.c)
+            when {
+                game.lastIllegalReason != null -> sfx.play(Sfx.SfxIllegal)
+                beforeX -> sfx.play(Sfx.SfxMarkX)
+                else -> sfx.play(Sfx.SfxPlaceOk)
+            }
             refresh()
         })
 
@@ -90,11 +101,13 @@ fun GameScreen(level: Level, onBack: () -> Unit) {
         TrayBar(
             game = game,
             onSelect = { id ->
+                sfx.play(Sfx.SfxTapUi)
                 game.selectPiece(id)
                 refresh()
             },
             onRotate = { id ->
                 game.rotateObject(id)
+                sfx.play(Sfx.SfxRotateO)
                 refresh()
             },
             onReturn = { id ->
@@ -115,13 +128,18 @@ fun GameScreen(level: Level, onBack: () -> Unit) {
                 },
                 label = { Text("X") },
             )
-            OutlinedButton(onClick = { game.undo(); refresh() }) { Text("Undo") }
+            OutlinedButton(onClick = { game.undo(); sfx.play(Sfx.SfxUndo); refresh() }) { Text("Undo") }
             Spacer(Modifier.weight(1f))
             Button(
                 onClick = {
                     val outcome = game.resolve()
                     refresh()
-                    if (outcome != null) showReveal = outcome
+                    if (outcome != null) {
+                        sfx.play(Sfx.SfxReveal)
+                        showReveal = outcome
+                    } else {
+                        sfx.play(Sfx.SfxIllegal)
+                    }
                 },
                 enabled = canResolve,
             ) { Text("Resolver") }
@@ -177,7 +195,10 @@ private fun BoardWithEdges(game: GameController, onCell: (Cell) -> Unit) {
                     val line = play.edge.cols[c]
                     PoBadge(line.people, line.objects)
                     Text(
-                        line.segments.joinToString(" ") { "${it.count}" },
+                        run {
+                        val visible = line.segments.map { it.count }.filter { it > 0 }.ifEmpty { listOf(0) }
+                        visible.joinToString("|")
+                    },
                         fontSize = 11.sp,
                         textAlign = TextAlign.Center,
                     )
@@ -194,7 +215,10 @@ private fun BoardWithEdges(game: GameController, onCell: (Cell) -> Unit) {
                     val line = play.edge.rows[r]
                     PoBadge(line.people, line.objects)
                     Text(
-                        line.segments.joinToString(" ") { "${it.count}" },
+                        run {
+                        val visible = line.segments.map { it.count }.filter { it > 0 }.ifEmpty { listOf(0) }
+                        visible.joinToString("|")
+                    },
                         fontSize = 11.sp,
                         textAlign = TextAlign.End,
                         modifier = Modifier.padding(end = 4.dp),
@@ -250,7 +274,8 @@ private fun BoardCell(
 ) {
     val play = game.play
     val roomId = play.roomOf(r, c)
-    val bg = RoomColors[roomId % RoomColors.size]
+    val highlightRooms = game.selectedId != null // Lucas: highlight salas al seleccionar (no badge must_room)
+    val bg = RoomColors[roomId % RoomColors.size].let { if (highlightRooms) it else it.copy(alpha = 0.85f) }
     val selected = game.selectedId != null && game.pieceAt(r, c) == game.selectedId
     val label = when {
         game.isVictim(r, c) -> "V"
@@ -329,15 +354,10 @@ private fun TrayBar(
                     onClick = {
                         when {
                             game.selectedId == obj.id && !placed -> onRotate(obj.id)
-                            placed -> {
-                                onSelect(obj.id)
-                                // second path: return via long — use rotate if selected+placed
-                                if (game.selectedId == obj.id) onRotate(obj.id)
-                            }
+                            placed -> onReturn(obj.id)
                             else -> onSelect(obj.id)
                         }
                     },
-                    onLongClick = { if (placed) onReturn(obj.id) },
                 )
             }
         }
@@ -355,8 +375,7 @@ private fun TrayChip(
     selected: Boolean,
     placed: Boolean,
     subtitle: String? = null,
-    onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
+    onClick: () -> Unit
 ) {
     val bg = when {
         selected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)

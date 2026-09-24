@@ -55,4 +55,4 @@
 
 Workflow mínimo: JDK 17 → `test lint assembleDebug assembleRelease` → artifacts → Release en tag `v*`.
 
-**Repo:** cuenta GitHub **personal de Javier** (no org Murcross nueva). URL pendiente (Lucas autentica gh/conector). Seguir en `/workspace/murcross-android/` sin remoto.
+**Repo:** https://github.com/nieto90/murcross (`main` pushed). CI workflow pendiente de scope `workflow` en el token (Lucas). Trabajo local sigue en `/workspace/murcross-android/`.

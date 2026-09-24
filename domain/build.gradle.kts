@@ -1,17 +1,10 @@
 plugins {
     id("org.jetbrains.kotlin.jvm")
 }
-
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    toolchain { languageVersion.set(JavaLanguageVersion.of(21)) }
 }
-
-kotlin {
-    jvmToolchain(17)
-}
-
+kotlin { jvmToolchain(21) }
 dependencies {
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
 }

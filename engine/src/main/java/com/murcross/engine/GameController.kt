@@ -260,17 +260,18 @@ class GameController(val level: Level) {
      */
     fun resolve(): RevealOutcome? {
         val v = validation()
-        if (!v.ok || v.culpritCell == null) {
+        val culpritCell = v.culpritCell
+        if (!v.ok || culpritCell == null) {
             lastIllegalReason = "no_legal"
             return null
         }
         val byCell = level.reveal.suspects.associate { it.cell to it.name }
-        val culpritName = byCell[v.culpritCell]
+        val culpritName = byCell[culpritCell]
             ?: level.reveal.suspects.getOrNull(level.reveal.culpritPawnIndex ?: -1)?.name
             ?: "Sospechoso"
         val outcome = RevealOutcome(
             culpritName = culpritName,
-            culpritCell = v.culpritCell,
+            culpritCell = culpritCell,
             suspectNamesByCell = byCell,
             objectNames = level.reveal.objectNames,
         )

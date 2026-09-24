@@ -32,7 +32,12 @@ object LevelLoader {
         return fromStream(stream)
     }
 
-    fun listBundledIds(): List<String> = listOf("n1_cafe", "n2_atico")
+    fun listBundledIds(): List<String> = listOf(
+        "v3a_mercado",
+        "v3b_biblioteca",
+        "n1_cafe",
+        "n2_atico",
+    )
 
     fun loadBundled(id: String): Level = fromClasspath("levels/$id.json")
 

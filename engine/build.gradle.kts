@@ -2,15 +2,12 @@ plugins {
     id("org.jetbrains.kotlin.jvm")
 }
 java {
-    toolchain { languageVersion.set(JavaLanguageVersion.of(17)) }
+    toolchain { languageVersion.set(JavaLanguageVersion.of(21)) }
 }
-kotlin {
-    jvmToolchain(17)
-}
+kotlin { jvmToolchain(21) }
 dependencies {
     implementation(project(":domain"))
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-    testImplementation("org.json:json:20240303")
+    testImplementation(project(":data"))
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
 }
-tasks.test { useJUnitPlatform() }

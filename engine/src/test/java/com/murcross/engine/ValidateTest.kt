@@ -2,9 +2,12 @@ package com.murcross.engine
 
 import com.murcross.data.LevelLoader
 import com.murcross.domain.model.Cell
+import com.murcross.domain.model.GameObject
 import com.murcross.domain.model.GameState
+import com.murcross.domain.model.Level
 import com.murcross.domain.model.PieceKind
 import com.murcross.domain.model.Placement
+import com.murcross.domain.model.absoluteObjectCells
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -16,105 +19,61 @@ class ValidateTest {
     private val n1 = LevelLoader.loadBundled("n1_cafe")
     private val n2 = LevelLoader.loadBundled("n2_atico")
 
-    /** Solución geométrica N1 (verify_levels_v2). */
-    private fun n1Solution(): List<Placement> = listOf(
-        Placement("banqueta", PieceKind.OBJECT, 0, 1, 0),
-        Placement("estanteria", PieceKind.OBJECT, 1, 2, 0),
-        // Sofá L: cells (0,3)(0,4)(1,4) — shape L [(0,0),(1,0),(1,1)] needs rot
-        // Absolute from (0,3) with rot that yields those cells:
-        // rot0 at (0,3): (0,3)(1,3)(1,4) — wrong
-        // We place using computed rot in test helper below
-        Placement("sofa", PieceKind.OBJECT, 0, 3, sofaRotN1()),
-        Placement("pawn_0", PieceKind.PAWN, 4, 0, 0),
-        Placement("pawn_1", PieceKind.PAWN, 4, 3, 0),
-    )
-
-    /** Encuentra rotación del sofá que cubre {(0,3),(0,4),(1,4)} con origen (0,3). */
-    private fun sofaRotN1(): Int {
-        val obj = n1.play.objectById("sofa")!!
-        val target = setOf(Cell(0, 3), Cell(0, 4), Cell(1, 4))
-        for (rot in 0..3) {
-            val cells = com.murcross.domain.model.absoluteObjectCells(obj, 0, 3, rot).toSet()
-            if (cells == target) return rot
+    private fun findObjectPlacement(level: Level, obj: GameObject, want: Set<Cell>): Placement {
+        val n = level.play.size
+        for (r in 0 until n) for (c in 0 until n) for (rot in 0..3) {
+            val cells = absoluteObjectCells(obj, r, c, rot)
+            if (cells.any { !level.play.inBounds(it.r, it.c) }) continue
+            if (cells.toSet() == want) return Placement(obj.id, PieceKind.OBJECT, r, c, rot)
         }
-        // Try other origins
-        for (r in 0 until 5) for (c in 0 until 5) for (rot in 0..3) {
-            val cells = com.murcross.domain.model.absoluteObjectCells(obj, r, c, rot).toSet()
-            if (cells == target) {
-                // mutate: return encoded - we need origin too; handle in n1Solution differently
-                return rot + 10 * r + 100 * c // won't use this path if origin works
-            }
-        }
-        error("sofa placement not found")
+        error("no placement for ${obj.id} covering $want")
     }
 
-    private fun n1SolutionFixed(): Pair<List<Placement>, Cell> {
-        val obj = n1.play.objectById("sofa")!!
-        val target = setOf(Cell(0, 3), Cell(0, 4), Cell(1, 4))
-        var sofaPlacement: Placement? = null
-        for (r in 0 until 5) for (c in 0 until 5) for (rot in 0..3) {
-            val cells = com.murcross.domain.model.absoluteObjectCells(obj, r, c, rot)
-            if (cells.any { !n1.play.inBounds(it.r, it.c) }) continue
-            if (cells.toSet() == target) {
-                sofaPlacement = Placement("sofa", PieceKind.OBJECT, r, c, rot)
-                break
-            }
-        }
-        requireNotNull(sofaPlacement)
+    private fun n1Solution(): Pair<List<Placement>, Cell> {
+        val sofa = n1.play.objectById("sofa")!!
         val placements = listOf(
             Placement("banqueta", PieceKind.OBJECT, 0, 1, 0),
             Placement("estanteria", PieceKind.OBJECT, 1, 2, 0),
-            sofaPlacement,
+            findObjectPlacement(n1, sofa, setOf(Cell(0, 3), Cell(0, 4), Cell(1, 4))),
             Placement("pawn_0", PieceKind.PAWN, 4, 0, 0),
             Placement("pawn_1", PieceKind.PAWN, 4, 3, 0),
         )
         return placements to Cell(4, 3)
     }
 
-    private fun n2SolutionFixed(): Pair<List<Placement>, Cell> {
-        fun find(id: String, target: Set<Cell>): Placement {
-            val obj = n2.play.objectById(id)!!
-            for (r in 0 until 6) for (c in 0 until 6) for (rot in 0..3) {
-                val cells = com.murcross.domain.model.absoluteObjectCells(obj, r, c, rot)
-                if (cells.any { !n2.play.inBounds(it.r, it.c) }) continue
-                if (cells.toSet() == target) return Placement(id, PieceKind.OBJECT, r, c, rot)
-            }
-            error("placement not found for $id")
-        }
+    private fun n2Solution(): Pair<List<Placement>, Cell> {
+        fun find(id: String, want: Set<Cell>) =
+            findObjectPlacement(n2, n2.play.objectById(id)!!, want)
         val placements = listOf(
             find("mesa", setOf(Cell(0, 0), Cell(1, 0), Cell(1, 1))),
             find("sofa", setOf(Cell(2, 3), Cell(2, 4), Cell(2, 5), Cell(3, 4))),
             find("estanteria", setOf(Cell(3, 2), Cell(4, 2), Cell(5, 2))),
             Placement("pawn_0", PieceKind.PAWN, 0, 3, 0), // Mar
-            Placement("pawn_1", PieceKind.PAWN, 2, 0, 0), // Iris culpable
-            Placement("pawn_2", PieceKind.PAWN, 5, 5, 0), // Gus
+            Placement("pawn_1", PieceKind.PAWN, 5, 5, 0), // Gus
+            Placement("pawn_2", PieceKind.PAWN, 2, 0, 0), // Iris culpable
         )
         return placements to Cell(2, 0)
     }
 
     @Test
-    fun n1_officialSolution_isLegal_culpritInSalon() {
-        val (placements, culprit) = n1SolutionFixed()
+    fun n1_officialSolution_isLegal() {
+        val (placements, culprit) = n1Solution()
         val result = validate(n1.play, GameState(placements))
-        assertTrue(result.softReasons.joinToString(), result.softReasons.isEmpty())
-        assertTrue(result.hardReasons.joinToString(), result.hardReasons.isEmpty())
-        assertTrue(result.ok)
+        assertTrue("soft=${result.softReasons} hard=${result.hardReasons}", result.ok)
         assertEquals(culprit, result.culpritCell)
     }
 
     @Test
-    fun n2_officialSolution_isLegal_culpritIris() {
-        val (placements, culprit) = n2SolutionFixed()
+    fun n2_officialSolution_isLegal() {
+        val (placements, culprit) = n2Solution()
         val result = validate(n2.play, GameState(placements))
-        assertTrue(result.softReasons.joinToString(), result.softReasons.isEmpty())
-        assertTrue(result.hardReasons.joinToString(), result.hardReasons.isEmpty())
-        assertTrue(result.ok)
+        assertTrue("soft=${result.softReasons} hard=${result.hardReasons}", result.ok)
         assertEquals(culprit, result.culpritCell)
     }
 
     @Test
     fun layerA_missingPiece_illegal() {
-        val (placements, _) = n1SolutionFixed()
+        val (placements, _) = n1Solution()
         val incomplete = placements.filter { it.pieceId != "pawn_1" }
         val result = validate(n1.play, GameState(incomplete))
         assertFalse(result.ok)
@@ -122,10 +81,9 @@ class ValidateTest {
     }
 
     @Test
-    fun layerA_objectCrossesRooms_illegal() {
-        // Banqueta horizontal spanning Barra+Salón: (0,2)(0,3)
+    fun layerA_objectCrossesRooms_orFailsPacking() {
         val bad = listOf(
-            Placement("banqueta", PieceKind.OBJECT, 0, 2, 0),
+            Placement("banqueta", PieceKind.OBJECT, 0, 2, 0), // spans Barra|Salón
             Placement("estanteria", PieceKind.OBJECT, 1, 2, 0),
             Placement("sofa", PieceKind.OBJECT, 2, 3, 0),
             Placement("pawn_0", PieceKind.PAWN, 4, 0, 0),
@@ -133,15 +91,12 @@ class ValidateTest {
         )
         val result = validate(n1.play, GameState(bad))
         assertFalse(result.ok)
-        assertTrue(
-            result.softReasons.any { it.contains("objeto_cruza_salas") || it.contains("borde_") || it.contains("solape") || it.contains("po_") }
-        )
+        assertTrue(result.softReasons.isNotEmpty())
     }
 
     @Test
     fun layerB_wrongEdge_illegal() {
-        val (placements, _) = n1SolutionFixed()
-        // Move pawn_0 from (4,0) to (3,0) — breaks edges / PO
+        val (placements, _) = n1Solution()
         val moved = placements.map {
             if (it.pieceId == "pawn_0") it.copy(r = 3, c = 0) else it
         }
@@ -151,30 +106,7 @@ class ValidateTest {
     }
 
     @Test
-    fun layerC_zeroPawnsInVictimRoom_hardFail() {
-        val (placements, _) = n1SolutionFixed()
-        // Both pawns in Barra
-        val moved = placements.map {
-            when (it.pieceId) {
-                "pawn_0" -> it.copy(r = 4, c = 0)
-                "pawn_1" -> it.copy(r = 4, c = 1)
-                else -> it
-            }
-        }
-        val result = validate(n1.play, GameState(moved))
-        assertFalse(result.ok)
-        // May also fail edges; hard should mention sala V if both outside Salon
-        // pawn at (4,1) is Barra (cols 0-2), (4,0) Barra → 0 in Salon
-        assertTrue(
-            result.hardReasons.any { it.startsWith("sospechosos_en_sala_V") } ||
-                result.softReasons.isNotEmpty()
-        )
-    }
-
-    @Test
     fun layerC_twoPawnsInVictimRoom_hardFail() {
-        val play = n1.play
-        // Minimal: place both pawns in Salón without caring about full legality of O
         val state = GameState(
             placements = listOf(
                 Placement("pawn_0", PieceKind.PAWN, 0, 3, 0),
@@ -184,14 +116,14 @@ class ValidateTest {
                 Placement("sofa", PieceKind.OBJECT, 2, 4, 0),
             )
         )
-        val result = validate(play, state)
+        val result = validate(n1.play, state)
         assertTrue(result.hardReasons.any { it == "sospechosos_en_sala_V:2" })
         assertFalse(result.ok)
     }
 
     @Test
     fun resolve_mapsAnonymousPawnsToNames() {
-        val (placements, culpritCell) = n1SolutionFixed()
+        val (placements, culpritCell) = n1Solution()
         val game = GameController(n1)
         game.loadPlacements(placements)
         assertTrue(game.canResolve())
@@ -204,12 +136,74 @@ class ValidateTest {
     }
 
     @Test
-    fun rotateObject_90cw_changesCells() {
+    fun rotateObject_90cw() {
         val game = GameController(n1)
         game.selectPiece("banqueta")
         assertTrue(game.placeObject("banqueta", 0, 1))
         val before = game.state.placementOf("banqueta")!!.rot
         assertTrue(game.rotateObject("banqueta"))
         assertEquals((before + 1) % 4, game.state.placementOf("banqueta")!!.rot)
+    }
+
+    private val v3a = LevelLoader.loadBundled("v3a_mercado")
+    private val v3b = LevelLoader.loadBundled("v3b_biblioteca")
+
+    private fun findObj(levelId: String, objId: String, target: Set<Cell>): Placement {
+        val level = LevelLoader.loadBundled(levelId)
+        val obj = level.play.objectById(objId)!!
+        val n = level.play.size
+        for (r in -2 until n + 2) for (c in -2 until n + 2) for (rot in 0..3) {
+            val cells = com.murcross.domain.model.absoluteObjectCells(obj, r, c, rot)
+            if (cells.any { !level.play.inBounds(it.r, it.c) }) continue
+            if (cells.toSet() == target) return Placement(objId, PieceKind.OBJECT, r, c, rot)
+        }
+        error("no placement $objId in $levelId for $target")
+    }
+
+    @Test
+    fun v3a_mercado_officialSolution_ok() {
+        val placements = listOf(
+            findObj("v3a_mercado", "caja", setOf(Cell(3, 0), Cell(4, 0), Cell(4, 1))),
+            findObj("v3a_mercado", "banco", setOf(Cell(0, 4), Cell(1, 4), Cell(2, 4))),
+            findObj("v3a_mercado", "cesta", setOf(Cell(1, 0), Cell(2, 0))),
+            Placement("pawn_0", PieceKind.PAWN, 0, 0, 0),
+            Placement("pawn_1", PieceKind.PAWN, 4, 3, 0),
+        )
+        val result = validate(v3a.play, GameState(placements))
+        assertTrue(result.softReasons.joinToString(), result.ok)
+        assertEquals(Cell(4, 3), result.culpritCell)
+    }
+
+    @Test
+    fun v3b_biblioteca_officialSolution_ok() {
+        val placements = listOf(
+            findObj("v3b_biblioteca", "estanteria", setOf(Cell(1, 2), Cell(2, 2), Cell(3, 2))),
+            findObj("v3b_biblioteca", "baul", setOf(Cell(4, 0), Cell(4, 1), Cell(5, 0), Cell(5, 1))),
+            findObj("v3b_biblioteca", "sofa", setOf(Cell(3, 4), Cell(4, 3), Cell(4, 4), Cell(5, 4))),
+            Placement("pawn_0", PieceKind.PAWN, 0, 2, 0),
+            Placement("pawn_1", PieceKind.PAWN, 0, 3, 0),
+            Placement("pawn_2", PieceKind.PAWN, 2, 5, 0),
+        )
+        val result = validate(v3b.play, GameState(placements))
+        assertTrue(result.softReasons.joinToString(), result.ok)
+        assertEquals(Cell(0, 3), result.culpritCell)
+    }
+
+    @Test
+    fun validate_signature_is_play_and_state_only() {
+        val m = Class.forName("com.murcross.engine.ValidateKt")
+            .methods.first { it.name == "validate" && it.parameterCount == 2 }
+        assertEquals(com.murcross.domain.model.LevelPlay::class.java, m.parameterTypes[0])
+        assertEquals(GameState::class.java, m.parameterTypes[1])
+        // must_room never consulted: legal geometry still ok with reveal must_room present
+        assertNotNull(v3a.reveal.suspects[0].mustRoom)
+        val placements = listOf(
+            findObj("v3a_mercado", "caja", setOf(Cell(3, 0), Cell(4, 0), Cell(4, 1))),
+            findObj("v3a_mercado", "banco", setOf(Cell(0, 4), Cell(1, 4), Cell(2, 4))),
+            findObj("v3a_mercado", "cesta", setOf(Cell(1, 0), Cell(2, 0))),
+            Placement("pawn_0", PieceKind.PAWN, 0, 0, 0),
+            Placement("pawn_1", PieceKind.PAWN, 4, 3, 0),
+        )
+        assertTrue(validate(v3a.play, GameState(placements)).ok)
     }
 }

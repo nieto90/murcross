@@ -4,13 +4,8 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.SoundPool
-import android.preference.PreferenceManager
-import com.murcross.R
 
-/**
- * SoundPool wiring — Sol EVENT_MAP.
- * Missing raw → no-op. Mute in-app + silent/vibrate ringer → skip.
- */
+/** SoundPool — Sol EVENT_MAP. Missing raw → no-op. Mute + silent/vibrate → skip. */
 enum class Sfx(val resName: String, val volume: Float) {
     SfxTapUi("tap_ui", 0.45f),
     SfxPlaceOk("place_ok", 0.65f),
@@ -27,9 +22,8 @@ enum class Sfx(val resName: String, val volume: Float) {
 class MurcrossSfx(context: Context) {
     private val app = context.applicationContext
     private val am = app.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    private val prefs = PreferenceManager.getDefaultSharedPreferences(app)
-
-    private val pool: SoundPool = SoundPool.Builder()
+    private val prefs = app.getSharedPreferences("murcross", Context.MODE_PRIVATE)
+    private val pool = SoundPool.Builder()
         .setMaxStreams(4)
         .setAudioAttributes(
             AudioAttributes.Builder()
@@ -38,35 +32,28 @@ class MurcrossSfx(context: Context) {
                 .build(),
         )
         .build()
-
     private val soundIds = mutableMapOf<Sfx, Int>()
 
     var muted: Boolean
         get() = prefs.getBoolean(KEY_MUTE, false)
-        set(value) = prefs.edit().putBoolean(KEY_MUTE, value).apply()
+        set(value) { prefs.edit().putBoolean(KEY_MUTE, value).apply() }
 
     init {
         for (sfx in Sfx.entries) {
             val id = app.resources.getIdentifier(sfx.resName, "raw", app.packageName)
-            if (id != 0) {
-                runCatching { soundIds[sfx] = pool.load(app, id, 1) }
-            }
+            if (id != 0) runCatching { soundIds[sfx] = pool.load(app, id, 1) }
         }
     }
 
     fun play(sfx: Sfx) {
         if (muted) return
-        val ringer = am.ringerMode
-        if (ringer == AudioManager.RINGER_MODE_SILENT || ringer == AudioManager.RINGER_MODE_VIBRATE) return
+        val mode = am.ringerMode
+        if (mode == AudioManager.RINGER_MODE_SILENT || mode == AudioManager.RINGER_MODE_VIBRATE) return
         val sid = soundIds[sfx] ?: return
         runCatching { pool.play(sid, sfx.volume, sfx.volume, 1, 0, 1f) }
     }
 
-    fun release() {
-        runCatching { pool.release() }
-    }
+    fun release() { runCatching { pool.release() } }
 
-    companion object {
-        private const val KEY_MUTE = "murcross_mute"
-    }
+    companion object { private const val KEY_MUTE = "murcross_mute" }
 }

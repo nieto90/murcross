@@ -32,7 +32,7 @@ Reglas: `/workspace/gdd/MURCROSS-reglas-congeladas-v1.md` (+ addendum anonimato)
 
 ## Bloqueadores externos
 
-- Repo en cuenta GitHub personal de Javier (Lucas autentica; URL pendiente)  
+- Repo: https://github.com/nieto90/murcross  
 - Pack v3 Dani/Nora (stub basta para APK v0)  
 
 Dudas de arquitectura → Hugo. Gates QA spoiler/unicidad → Quim.

@@ -15,7 +15,6 @@ class LevelLoaderTest {
         assertEquals(3, level.play.victim.r)
         assertEquals(4, level.play.victim.c)
         assertEquals(2, level.reveal.suspects.size)
-        // play must not expose names — names only in reveal
         assertEquals("Nico", level.reveal.suspects.find { it.cell.r == 4 && it.cell.c == 3 }?.name)
     }
 
@@ -27,13 +26,19 @@ class LevelLoaderTest {
         assertEquals(3, level.play.objects.size)
         assertEquals(3, level.play.victim.r)
         assertEquals(1, level.play.victim.c)
-        assertEquals("Iris", level.reveal.suspects.find { it.cell == com.murcross.domain.model.Cell(2, 0) }?.name)
+        assertEquals(
+            "Iris",
+            level.reveal.suspects.find {
+                it.cell == com.murcross.domain.model.Cell(2, 0)
+            }?.name,
+        )
     }
 
     @Test
     fun bundledIds_matchResources() {
         val ids = LevelLoader.listBundledIds()
-        assertEquals(listOf("n1_cafe", "n2_atico"), ids)
+        assertTrue("n1_cafe" in ids)
+        assertTrue("n2_atico" in ids)
         for (id in ids) {
             val level = LevelLoader.loadBundled(id)
             assertTrue(level.play.size in 5..7)
@@ -43,9 +48,8 @@ class LevelLoaderTest {
     }
 
     @Test
-    fun playHasNoIdentityFieldsInObjects() {
+    fun playHasNoIdentityInObjects() {
         val level = LevelLoader.loadBundled("n1_cafe")
-        // Objects in play only have id/shape — reveal holds narrative names
         assertTrue(level.reveal.objectNames.containsKey("sofa"))
         assertTrue(level.play.objects.none { it.id.contains("Vera") })
     }
