@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -24,7 +25,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.murcross.app.ui.theme.MxCardRadius
 import com.murcross.app.ui.theme.MxColors
 import com.murcross.audio.Bgm
 import com.murcross.audio.MurcrossBgm
@@ -49,12 +52,18 @@ fun LevelSelectScreen(levels: List<Level>, onSelect: (Level) -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
-            .background(MxColors.Bg)
+            .background(MxColors.BgTint)
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Murcross", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.weight(1f))
+            Text(
+                "Murcross",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                color = MxColors.Brand,
+                modifier = Modifier.weight(1f),
+            )
             TextButton(onClick = {
                 muted = !muted
                 sfx.muted = muted
@@ -72,10 +81,16 @@ fun LevelSelectScreen(levels: List<Level>, onSelect: (Level) -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onSelect(level) },
+                    shape = RoundedCornerShape(MxCardRadius),
                     colors = CardDefaults.cardColors(containerColor = MxColors.Surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 ) {
                     Column(Modifier.padding(16.dp)) {
-                        Text(level.title.ifBlank { level.id }, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            level.title.ifBlank { level.id },
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MxColors.Ink,
+                        )
                         Text(
                             "${level.play.size}×${level.play.size} · ${level.play.pawnCount}P · ${level.play.objects.size}O",
                             style = MaterialTheme.typography.bodySmall,

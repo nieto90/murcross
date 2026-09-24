@@ -3,8 +3,8 @@ package com.murcross.app.ui.screens
 import android.content.Context
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -39,16 +40,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.murcross.app.ui.theme.GlyphO
+import com.murcross.app.ui.theme.GlyphP
+import com.murcross.app.ui.theme.GlyphV
+import com.murcross.app.ui.theme.GlyphX
+import com.murcross.app.ui.theme.MxCardRadius
+import com.murcross.app.ui.theme.MxChipRadius
 import com.murcross.app.ui.theme.MxColors
 import com.murcross.app.ui.theme.RoomColors
+import com.murcross.app.ui.theme.RoomPill
+import com.murcross.app.ui.theme.drawObjectHatch
+import com.murcross.app.ui.theme.drawRoomPattern
 import com.murcross.audio.Bgm
 import com.murcross.audio.MurcrossBgm
 import com.murcross.audio.MurcrossSfx
@@ -105,9 +115,13 @@ fun GameScreen(level: Level, onBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("←") }
+            TextButton(onClick = onBack) { Text("←", color = MxColors.Brand) }
             Column(Modifier.weight(1f)) {
-                Text(level.title.ifBlank { level.id }, style = MaterialTheme.typography.titleLarge)
+                Text(
+                    level.title.ifBlank { level.id },
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MxColors.Ink,
+                )
                 Text(
                     "Peones anónimos · V fija · Resolver al legal",
                     style = MaterialTheme.typography.bodySmall,
@@ -122,7 +136,7 @@ fun GameScreen(level: Level, onBack: () -> Unit) {
         if (showRemoveCoach) {
             Surface(
                 color = MxColors.Surface,
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(MxCardRadius),
                 tonalElevation = 2.dp,
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -134,12 +148,13 @@ fun GameScreen(level: Level, onBack: () -> Unit) {
                         "Mantén pulsado para devolver a la bandeja",
                         Modifier.weight(1f),
                         style = MaterialTheme.typography.bodySmall,
+                        color = MxColors.Ink,
                     )
                     TextButton(onClick = {
                         prefs.edit().putBoolean("ftue_remove_longpress_done", true).apply()
                         showRemoveCoach = false
                         sfx.play(Sfx.SfxCoachDismiss)
-                    }) { Text("OK") }
+                    }) { Text("OK", color = MxColors.Brand) }
                 }
             }
         }
@@ -232,6 +247,13 @@ fun GameScreen(level: Level, onBack: () -> Unit) {
             },
             enabled = canResolve,
             modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MxColors.Brand,
+                contentColor = MxColors.Surface,
+                disabledContainerColor = MxColors.Line,
+                disabledContentColor = MxColors.InkMuted,
+            ),
+            shape = RoundedCornerShape(MxCardRadius),
         ) { Text("Resolver") }
     }
 
@@ -247,7 +269,7 @@ fun GameScreen(level: Level, onBack: () -> Unit) {
                     Text(
                         "Culpable: ${outcome.culpritName}",
                         fontWeight = FontWeight.Bold,
-                        color = MxColors.Illegal,
+                        color = MxColors.AccentRed,
                     )
                     Text("Sospechosos:")
                     outcome.suspectNamesByCell.entries.sortedBy { it.key.r * 10 + it.key.c }.forEach {
@@ -286,6 +308,15 @@ private fun BoardWithEdges(
         n == 6 -> 42.dp
         else -> 36.dp
     }
+    // Room pill anchors: top-left cell of each room id (cheap AC-C4)
+    val roomAnchors = remember(play) {
+        val first = mutableMapOf<Int, Cell>()
+        for (r in 0 until n) for (c in 0 until n) {
+            val id = play.roomOf(r, c)
+            if (id !in first) first[id] = Cell(r, c)
+        }
+        first
+    }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.Bottom) {
@@ -323,12 +354,18 @@ private fun BoardWithEdges(
                     )
                 }
                 for (c in 0 until n) {
+                    val roomId = play.roomOf(r, c)
+                    val showPill = roomAnchors[roomId] == Cell(r, c)
+                    val pillText = play.roomMeta.getOrNull(roomId)?.short
+                        ?: play.roomMeta.getOrNull(roomId)?.name?.take(4)
+                        ?: "R${roomId + 1}"
                     BoardCell(
                         game = game,
                         r = r,
                         c = c,
                         validAnchor = Cell(r, c) in validAnchors,
                         hasSelection = game.selectedId != null && !game.modeX,
+                        roomPill = if (showPill) pillText else null,
                         modifier = Modifier.size(cellSize),
                         onClick = { onCell(Cell(r, c)) },
                         onLongClick = { onLongPress(Cell(r, c)) },
@@ -379,6 +416,7 @@ private fun BoardCell(
     c: Int,
     validAnchor: Boolean,
     hasSelection: Boolean,
+    roomPill: String?,
     modifier: Modifier,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -390,76 +428,77 @@ private fun BoardCell(
     val pid = game.pieceAt(r, c)
     val isObj = pid != null && play.objectById(pid) != null
     val isPawn = pid != null && pid.startsWith("pawn_")
-    val label = when {
-        game.isVictim(r, c) -> "V"
-        game.hasX(r, c) -> "X"
-        isPawn -> "P"
-        isObj -> "O"
-        else -> ""
-    }
-    // Iris tokens: room pastel under empty; P mono / O masa+hatch. Never Murdoku-colored pawns.
+    val isVictim = game.isVictim(r, c)
+    val hasX = game.hasX(r, c)
+
+    // Iris: P mono / O masa+hatch / V badge. Never Murdoku-colored identity pawns.
     val pieceFill = when {
-        label == "V" -> MxColors.VictimFill
+        isVictim -> MxColors.VictimFill
         isPawn -> MxColors.PersonFill
         isObj -> MxColors.ObjectFill
         else -> null
     }
+
+    // AC-S5: legales = room tint 100%; ilegales ~40%; idle = full pastel (no legal outlines)
     val roomBg = when {
         hasSelection && validAnchor -> baseRoom
         hasSelection && !validAnchor -> baseRoom.copy(alpha = 0.4f)
-        else -> baseRoom.copy(alpha = 0.9f)
+        else -> baseRoom
     }
     val bg = pieceFill ?: roomBg
+
+    // AC-S5: legal cells = Select outline 2dp; idle = no legal outlines
+    val borderWidth = when {
+        selected -> 2.dp
+        hasSelection && validAnchor -> 2.dp
+        else -> 1.dp
+    }
     val borderColor = when {
         selected -> MxColors.Select
-        game.isVictim(r, c) -> MxColors.VictimFill
-        hasSelection && validAnchor -> MxColors.Select.copy(alpha = 0.55f)
+        hasSelection && validAnchor -> MxColors.Select
+        isVictim -> MxColors.VictimFill
         else -> MxColors.Line
     }
-    val pieceColor = when (label) {
-        "V", "P", "O" -> MxColors.Surface
-        "X" -> MxColors.InkMuted
-        else -> MxColors.Ink
-    }
+    val patternAlpha = if (hasSelection && !validAnchor && pieceFill == null) 0.4f else 1f
+
     Box(
         modifier
             .padding(1.dp)
             .background(bg, RoundedCornerShape(4.dp))
-            .then(
+            .drawBehind {
+                if (pieceFill == null) {
+                    drawRoomPattern(roomId, MxColors.Ink.copy(alpha = 0.12f * patternAlpha))
+                }
                 if (isObj) {
-                    Modifier.drawBehind {
-                        // diagonal hatch @ 0.22 alpha (Iris)
-                        val step = 6.dp.toPx()
-                        val stroke = 1.dp.toPx()
-                        val hatch = MxColors.ObjectHatch.copy(alpha = 0.22f)
-                        var x = -size.height
-                        while (x < size.width + size.height) {
-                            drawLine(
-                                color = hatch,
-                                start = Offset(x, size.height),
-                                end = Offset(x + size.height, 0f),
-                                strokeWidth = stroke,
-                                pathEffect = PathEffect.cornerPathEffect(0f),
-                            )
-                            x += step
-                        }
-                    }
-                } else Modifier,
-            )
-            .border(if (selected) 2.dp else 1.dp, borderColor, RoundedCornerShape(4.dp))
+                    drawObjectHatch()
+                }
+            }
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         contentAlignment = Alignment.Center,
     ) {
-        if (label.isNotEmpty()) {
-            Text(label, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = pieceColor)
+        when {
+            isVictim -> GlyphV(Modifier.size(22.dp))
+            isPawn -> GlyphP(Modifier.size(26.dp), fill = MxColors.Surface)
+            isObj -> { /* masa+hatch is the O channel; no identity label */ }
+            hasX -> GlyphX(Modifier.size(18.dp), color = MxColors.InkMuted)
+        }
+        // Room pill only on empty anchor cell (no piece/V/X), idle-safe
+        if (roomPill != null && pieceFill == null && !hasX) {
+            RoomPill(
+                roomPill,
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 2.dp),
+            )
         }
     }
 }
 
 /**
- * Vera §2.1 AC-T*: 2 filas fijas + scroll horizontal nativo.
- * Slots ≥48×48 dp, gap ≥8 dp, zona ~112–128 dp.
- * Orden: P juntos izq → O por tamaño desc. Placed = ghost ~30%.
+ * Vera §2.1 AC-T* / Iris AC-T5: 2 filas + scroll H.
+ * Chips ≥48×48 dp, corner 12–16 dp, placed = ghost ~30% (dashed).
+ * Hard ban: no must_room badges.
  */
 @Composable
 private fun TrayBar(
@@ -473,8 +512,8 @@ private fun TrayBar(
     val objects = play.objects.sortedByDescending { objectCells(it, 0).size }
 
     Surface(
-        color = MxColors.Surface,
-        shape = RoundedCornerShape(10.dp),
+        color = MxColors.TraySurface,
+        shape = RoundedCornerShape(MxCardRadius),
         tonalElevation = 1.dp,
         shadowElevation = 2.dp,
         modifier = Modifier
@@ -489,7 +528,6 @@ private fun TrayBar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Pawns as 2-row columns
             TwoRowSlotColumns(
                 ids = pawns,
                 game = game,
@@ -498,7 +536,6 @@ private fun TrayBar(
                 onRotate = onRotate,
                 onReturn = onReturn,
             )
-            // Separator P|O
             Box(
                 Modifier
                     .width(1.dp)
@@ -527,7 +564,6 @@ private fun TwoRowSlotColumns(
     onRotate: (String) -> Unit,
     onReturn: (String) -> Unit,
 ) {
-    // Column-major: pairs (top, bottom) scrolling horizontally
     val columns = ids.chunked(2)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         for (col in columns) {
@@ -539,75 +575,96 @@ private fun TwoRowSlotColumns(
                     val placed = game.state.placementOf(id) != null
                     val selected = game.selectedId == id
                     val rot = if (isObject) game.getObjectRot(id) else 0
-                    val shapeSize = if (isObject) {
-                        playObjectSize(game, id)
-                    } else null
                     TrayChip(
-                        label = if (isObject) id.take(3).replaceFirstChar { it.uppercase() } else "P",
+                        isObject = isObject,
                         selected = selected,
                         placed = placed,
-                        subtitle = if (isObject) "r$rot · ${shapeSize ?: "?"}" else null,
+                        subtitle = if (isObject) "r$rot" else null,
                         onClick = {
                             when {
-                                // tap-tap fallback: piece selected on board → return
                                 placed && game.selectedId == id -> onReturn(id)
-                                placed -> onSelect(id) // re-select placed instance
-                                selected && isObject -> onRotate(id) // 2nd tap O unplaced = rotate
+                                placed -> onSelect(id)
+                                selected && isObject -> onRotate(id)
                                 else -> onSelect(id)
                             }
                         },
                     )
                 }
                 if (col.size == 1) {
-                    Spacer(Modifier.size(48.dp)) // keep row alignment
+                    Spacer(Modifier.size(48.dp))
                 }
             }
         }
     }
 }
 
-private fun playObjectSize(game: GameController, id: String): Int {
-    val obj = game.play.objectById(id) ?: return 0
-    return objectCells(obj, 0).size
-}
-
 @Composable
 private fun TrayChip(
-    label: String,
+    isObject: Boolean,
     selected: Boolean,
     placed: Boolean,
     subtitle: String? = null,
     onClick: () -> Unit,
 ) {
-    // States: inTray | selected | placed(ghost~30%)
+    // States: inTray | selected | placed(ghost~30% dashed)
+    val shape = RoundedCornerShape(MxChipRadius) // 14 dp within 12–16
     val bg = when {
         selected -> MxColors.Select.copy(alpha = 0.22f)
-        placed -> MxColors.Surface.copy(alpha = 0.3f)
-        else -> MxColors.EdgeO.copy(alpha = 0.55f)
+        placed -> MxColors.TraySurface.copy(alpha = 0.3f)
+        else -> MxColors.TraySurface
     }
-    val contentAlpha = if (placed && !selected) 0.35f else 1f
-    Column(
+    val contentAlpha = if (placed && !selected) 0.3f else 1f
+    val borderColor = when {
+        selected -> MxColors.Select
+        else -> MxColors.Line
+    }
+    Box(
         Modifier
             .size(48.dp)
-            .background(bg, RoundedCornerShape(8.dp))
-            .border(
-                if (selected) 2.dp else 1.dp,
-                if (selected) MxColors.Select else MxColors.Line,
-                RoundedCornerShape(8.dp),
+            .background(bg, shape)
+            .then(
+                if (placed && !selected) {
+                    Modifier.drawWithContent {
+                        drawContent()
+                        drawRoundRect(
+                            color = MxColors.Line,
+                            style = Stroke(
+                                width = 1.5.dp.toPx(),
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())),
+                            ),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(
+                                MxChipRadius.toPx(),
+                                MxChipRadius.toPx(),
+                            ),
+                        )
+                    }
+                } else {
+                    Modifier.border(if (selected) 2.dp else 1.5.dp, borderColor, shape)
+                },
             )
-            .clickable(onClick = onClick)
-            .padding(4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
     ) {
-        Text(
-            if (placed) "✓$label" else label,
-            fontWeight = FontWeight.Bold,
-            fontSize = 12.sp,
-            color = MxColors.Ink.copy(alpha = contentAlpha),
-        )
-        if (subtitle != null) {
-            Text(subtitle, fontSize = 8.sp, color = MxColors.InkMuted.copy(alpha = contentAlpha))
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (isObject) {
+                GlyphO(
+                    Modifier.size(28.dp),
+                    fill = MxColors.ObjectFill.copy(alpha = contentAlpha),
+                    hatch = MxColors.ObjectHatch.copy(alpha = 0.22f * contentAlpha),
+                )
+            } else {
+                GlyphP(
+                    Modifier.size(28.dp),
+                    fill = MxColors.PersonFill.copy(alpha = contentAlpha),
+                )
+            }
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    fontSize = 8.sp,
+                    color = MxColors.InkMuted.copy(alpha = contentAlpha),
+                )
+            }
         }
     }
 }
