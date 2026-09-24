@@ -13,6 +13,7 @@ import com.murcross.domain.model.absoluteObjectCells
 /**
  * Loop de partida: colocar/quitar, X, rotar O 90° CW, undo, Resolver.
  * Peones anónimos hasta [resolve].
+ * Quitar = [returnToTray] / [longPressCell] — evento atómico en historial (snapshot).
  */
 class GameController(val level: Level) {
     val play: LevelPlay get() = level.play
@@ -77,6 +78,52 @@ class GameController(val level: Level) {
     fun hasX(r: Int, c: Int): Boolean =
         state.marksX.any { it.r == r && it.c == c }
 
+    /**
+     * AC-S*: celdas ancla válidas **ahora** para la pieza seleccionada
+     * (vacías, sin solape; O cabe entero en una sala con rotación actual).
+     * Nunca tipa must_room.
+     */
+    fun validAnchorCells(): Set<Cell> {
+        val sel = selectedId ?: return emptySet()
+        if (modeX || resolved != null) return emptySet()
+        val n = play.size
+        val out = mutableSetOf<Cell>()
+        val isObj = play.objectById(sel) != null
+        for (r in 0 until n) for (c in 0 until n) {
+            if (isObj) {
+                if (canPlaceObjectAt(sel, r, c)) out += Cell(r, c)
+            } else {
+                if (canPlacePawnAt(sel, r, c)) out += Cell(r, c)
+            }
+        }
+        return out
+    }
+
+    fun isValidAnchor(r: Int, c: Int): Boolean = Cell(r, c) in validAnchorCells()
+
+    private fun canPlacePawnAt(pieceId: String, r: Int, c: Int): Boolean {
+        if (!play.inBounds(r, c)) return false
+        if (isVictim(r, c)) return false
+        if (hasX(r, c)) return false
+        val other = pieceAt(r, c)
+        return other == null || other == pieceId
+    }
+
+    private fun canPlaceObjectAt(pieceId: String, r: Int, c: Int): Boolean {
+        val obj = play.objectById(pieceId) ?: return false
+        val rot = getObjectRot(pieceId)
+        val cells = absoluteObjectCells(obj, r, c, rot)
+        if (cells.any { !play.inBounds(it.r, it.c) }) return false
+        if (cells.any { isVictim(it.r, it.c) }) return false
+        if (cells.any { hasX(it.r, it.c) }) return false
+        if (cells.map { play.roomOf(it.r, it.c) }.toSet().size > 1) return false
+        for (cell in cells) {
+            val hit = pieceAt(cell.r, cell.c)
+            if (hit != null && hit != pieceId) return false
+        }
+        return true
+    }
+
     private fun snapshot() {
         history.addLast(state.copy(
             placements = state.placements.map { it.copy() },
@@ -91,13 +138,35 @@ class GameController(val level: Level) {
         return true
     }
 
+    /**
+     * Quitar pieza concreta → bandeja. Siempre apila un Remove atómico vía [snapshot].
+     * O conserva rotación en [trayRot]. Celdas vacías (no auto-X).
+     * Tras quitar: selección = ninguna; [modeX] se mantiene.
+     */
     fun returnToTray(pieceId: String): Boolean {
+        if (resolved != null) return false
         val p = state.placementOf(pieceId) ?: return false
-        snapshot()
+        snapshot() // Remove atómico — obligatorio en pila undo
         if (p.kind == PieceKind.OBJECT) trayRot[pieceId] = p.rot
         state = state.copy(placements = state.placements.filter { it.pieceId != pieceId })
+        selectedId = null
+        // modeX unchanged
         resolved = null
+        lastIllegalReason = null
         return true
+    }
+
+    /**
+     * Long-press ~450 ms en celda con P/O → [returnToTray].
+     * V / vacío / X = no-op (no pinta X aunque modeX).
+     * Multicelda O: cualquier celda ocupada quita el objeto entero.
+     */
+    fun longPressCell(r: Int, c: Int): Boolean {
+        if (resolved != null) return false
+        if (!play.inBounds(r, c)) return false
+        if (isVictim(r, c)) return false
+        val pid = pieceAt(r, c) ?: return false
+        return returnToTray(pid)
     }
 
     fun tapCell(r: Int, c: Int) {
@@ -143,23 +212,16 @@ class GameController(val level: Level) {
     }
 
     fun placePawn(pieceId: String, r: Int, c: Int): Boolean {
-        if (!play.inBounds(r, c)) return false
-        if (isVictim(r, c)) {
-            lastIllegalReason = "sobre_v"
-            return false
-        }
-        if (hasX(r, c)) {
-            lastIllegalReason = "sobre_x"
-            return false
-        }
-        val other = pieceAt(r, c)
-        if (other != null && other != pieceId) {
-            lastIllegalReason = "solape"
+        if (!canPlacePawnAt(pieceId, r, c)) {
+            lastIllegalReason = when {
+                isVictim(r, c) -> "sobre_v"
+                hasX(r, c) -> "sobre_x"
+                else -> "solape"
+            }
             return false
         }
         snapshot()
         val without = state.placements.filter { it.pieceId != pieceId }
-        // Quitar X si hubiera
         val marks = state.marksX.filterNot { it.r == r && it.c == c }
         state = state.copy(
             placements = without + Placement(pieceId, PieceKind.PAWN, r, c, 0),
@@ -171,33 +233,14 @@ class GameController(val level: Level) {
     }
 
     fun placeObject(pieceId: String, r: Int, c: Int): Boolean {
-        val obj = play.objectById(pieceId) ?: return false
+        if (play.objectById(pieceId) == null) return false
+        if (!canPlaceObjectAt(pieceId, r, c)) {
+            lastIllegalReason = "place_ilegal"
+            return false
+        }
+        val obj = play.objectById(pieceId)!!
         val rot = getObjectRot(pieceId)
         val cells = absoluteObjectCells(obj, r, c, rot)
-        if (cells.any { !play.inBounds(it.r, it.c) }) {
-            lastIllegalReason = "fuera_tablero"
-            return false
-        }
-        if (cells.any { isVictim(it.r, it.c) }) {
-            lastIllegalReason = "sobre_v"
-            return false
-        }
-        if (cells.any { hasX(it.r, it.c) }) {
-            lastIllegalReason = "sobre_x"
-            return false
-        }
-        val rooms = cells.map { play.roomOf(it.r, it.c) }.toSet()
-        if (rooms.size > 1) {
-            lastIllegalReason = "cruza_salas"
-            return false
-        }
-        for (cell in cells) {
-            val hit = pieceAt(cell.r, cell.c)
-            if (hit != null && hit != pieceId) {
-                lastIllegalReason = "solape"
-                return false
-            }
-        }
         snapshot()
         val without = state.placements.filter { it.pieceId != pieceId }
         val marks = state.marksX.filterNot { x -> cells.any { it.r == x.r && it.c == x.c } }
