@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "id": "n1_cafe",
+  "title": "Café de la esquina",
+  "play": {
+    "size": 5,
+    "rooms": [
+      [0, 0, 0, 1, 1],
+      [0, 0, 0, 1, 1],
+      [0, 0, 0, 1, 1],
+      [0, 0, 0, 1, 1],
+      [0, 0, 0, 1, 1]
+    ],
+    "roomMeta": [
+      { "id": 0, "name": "Barra", "short": "B", "token": "barra" },
+      { "id": 1, "name": "Salón", "short": "S", "token": "salon" }
+    ],
+    "victim": { "r": 3, "c": 4 },
+    "pawns": { "count": 2 },
+    "objects": [
+      {
+        "id": "sofa",
+        "shapeId": "tromino_L",
+        "cells": [{ "dr": 0, "dc": 0 }, { "dr": 1, "dc": 0 }, { "dr": 1, "dc": 1 }]
+      },
+      {
+        "id": "estanteria",
+        "shapeId": "tromino_I",
+        "cells": [{ "dr": 0, "dc": 0 }, { "dr": 1, "dc": 0 }, { "dr": 2, "dc": 0 }]
+      },
+      {
+        "id": "banqueta",
+        "shapeId": "domino",
+        "cells": [{ "dr": 0, "dc": 0 }, { "dr": 0, "dc": 1 }]
+      }
+    ],
+    "edge": {
+      "rows": [
+        { "segments": [{ "roomId": 0, "count": 2 }, { "roomId": 1, "count": 2 }], "people": 0, "objects": 4 },
+        { "segments": [{ "roomId": 0, "count": 1 }, { "roomId": 1, "count": 1 }], "people": 0, "objects": 2 },
+        { "segments": [{ "roomId": 0, "count": 1 }, { "roomId": 1, "count": 0 }], "people": 0, "objects": 1 },
+        { "segments": [{ "roomId": 0, "count": 1 }, { "roomId": 1, "count": 1 }], "people": 1, "objects": 1 },
+        { "segments": [{ "roomId": 0, "count": 1 }, { "roomId": 1, "count": 1 }], "people": 2, "objects": 0 }
+      ],
+      "cols": [
+        { "segments": [{ "roomId": 0, "count": 1 }], "people": 1, "objects": 0 },
+        { "segments": [{ "roomId": 0, "count": 1 }], "people": 0, "objects": 1 },
+        { "segments": [{ "roomId": 0, "count": 4 }], "people": 0, "objects": 4 },
+        { "segments": [{ "roomId": 1, "count": 2 }], "people": 1, "objects": 1 },
+        { "segments": [{ "roomId": 1, "count": 3 }], "people": 1, "objects": 2 }
+      ]
+    }
+  },
+  "reveal": {
+    "suspects": [
+      { "pawnIndex": 0, "name": "Vera", "cell": { "r": 4, "c": 0 }, "must_room": 0 },
+      { "pawnIndex": 1, "name": "Nico", "cell": { "r": 4, "c": 3 }, "must_room": 1 }
+    ],
+    "objects": {
+      "sofa": "sofá del salón",
+      "estanteria": "estantería de la barra",
+      "banqueta": "banqueta del bar"
+    },
+    "culpritPawnIndex": 1
+  }
+}

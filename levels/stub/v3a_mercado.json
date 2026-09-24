@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "id": "v3a_mercado",
+  "title": "Mercado de abastos",
+  "play": {
+    "size": 5,
+    "rooms": [
+      [0, 0, 1, 1, 1],
+      [0, 0, 1, 1, 1],
+      [0, 0, 1, 1, 1],
+      [0, 0, 1, 1, 1],
+      [0, 0, 1, 1, 1]
+    ],
+    "roomMeta": [
+      { "id": 0, "name": "Frutería", "short": "F", "token": "fruteria" },
+      { "id": 1, "name": "Carnicería", "short": "C", "token": "carniceria" }
+    ],
+    "victim": { "r": 3, "c": 2 },
+    "pawns": { "count": 2 },
+    "objects": [
+      {
+        "id": "caja",
+        "shapeId": "tromino_L",
+        "cells": [{ "dr": 0, "dc": 0 }, { "dr": 1, "dc": 0 }, { "dr": 1, "dc": 1 }]
+      },
+      {
+        "id": "banco",
+        "shapeId": "tromino_I",
+        "cells": [{ "dr": 0, "dc": 0 }, { "dr": 1, "dc": 0 }, { "dr": 2, "dc": 0 }]
+      },
+      {
+        "id": "cesta",
+        "shapeId": "domino",
+        "cells": [{ "dr": 0, "dc": 0 }, { "dr": 1, "dc": 0 }]
+      }
+    ],
+    "edge": {
+      "rows": [
+        { "segments": [{ "roomId": 0, "count": 1 }, { "roomId": 1, "count": 1 }], "people": 1, "objects": 1 },
+        { "segments": [{ "roomId": 0, "count": 1 }, { "roomId": 1, "count": 1 }], "people": 0, "objects": 2 },
+        { "segments": [{ "roomId": 0, "count": 1 }, { "roomId": 1, "count": 1 }], "people": 0, "objects": 2 },
+        { "segments": [{ "roomId": 0, "count": 1 }, { "roomId": 1, "count": 1 }], "people": 1, "objects": 1 },
+        { "segments": [{ "roomId": 0, "count": 2 }, { "roomId": 1, "count": 1 }], "people": 1, "objects": 2 }
+      ],
+      "cols": [
+        { "segments": [{ "roomId": 0, "count": 5 }], "people": 1, "objects": 4 },
+        { "segments": [{ "roomId": 0, "count": 1 }], "people": 0, "objects": 1 },
+        { "segments": [{ "roomId": 1, "count": 1 }], "people": 1, "objects": 0 },
+        { "segments": [{ "roomId": 1, "count": 1 }], "people": 1, "objects": 0 },
+        { "segments": [{ "roomId": 1, "count": 3 }], "people": 0, "objects": 3 }
+      ]
+    }
+  },
+  "reveal": {
+    "suspects": [
+      { "pawnIndex": 0, "name": "Lina", "cell": { "r": 0, "c": 0 }, "must_room": 0, "trait": "frutera del puesto" },
+      { "pawnIndex": 1, "name": "Bruno", "cell": { "r": 4, "c": 3 }, "must_room": 1, "trait": "carnicero" }
+    ],
+    "objects": {
+      "caja": "caja de naranjas",
+      "banco": "banco del mostrador",
+      "cesta": "cesta de mimbre"
+    },
+    "culpritPawnIndex": 1
+  }
+}
